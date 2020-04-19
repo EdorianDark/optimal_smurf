@@ -14,7 +14,10 @@
                 // "--",
                 // "arg1"
             ],
-            "group": "build"
+            "group": "build",
+            "presentation": {
+                "clear": true 
+            }
         },
         {
             "label": "cargo test",
@@ -29,7 +32,10 @@
             "group": {
 				"kind": "build",
                 "isDefault": true
-			}                
+			}                ,
+            "presentation": {
+                "clear": true
+            }
         }
     ]
 }
