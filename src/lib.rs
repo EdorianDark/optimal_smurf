@@ -8,7 +8,7 @@ pub struct Problem {
     w: Vec<i64>,
     k: i64,
 }
-
+#[derive(Debug)]
 pub struct Solution {
     pub value: i64,
     pub contained: Vec<bool>,
@@ -142,6 +142,220 @@ mod dynamic_programming {
     }
 }
 pub use dynamic_programming::dynamic_solve;
+
+pub use branch_and_bound::bounding_solve;
+mod branch_and_bound {
+    use super::{Problem, Solution};
+
+    #[derive(Clone, Debug)]
+    struct Node {
+        value: u64,
+        room: u64,
+        estimate: f64,
+        contained: Vec<bool>, //according to opt_sequence
+    }
+    impl PartialEq for Node {
+        fn eq(&self, other: &Self) -> bool {
+            self.value == other.value
+                && self.room == other.room
+                && self.estimate == other.estimate
+                && self.contained == other.contained
+        }
+    }
+    impl Eq for Node {}
+
+    impl Ord for Node {
+        fn cmp(&self, other: &Node) -> std::cmp::Ordering {
+            self.estimate.partial_cmp(&other.estimate).expect("a Nan")
+        }
+    }
+
+    impl PartialOrd for Node {
+        fn partial_cmp(&self, other: &Node) -> Option<std::cmp::Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+
+    fn find_optimal_sequence(problem: &Problem) -> Vec<usize> {
+        assert_eq!(problem.v.len(), problem.w.len());
+
+        let v_iter = problem.v.iter().map(|v| *v as f64);
+        let w_iter = problem.w.iter().map(|w| *w as f64);
+        let normalized = v_iter.zip(w_iter).map(|(v, w)| v / w);
+        let mut values: Vec<_> = normalized.enumerate().collect();
+        values.sort_by(|(_, a), (_, b)| b.partial_cmp(a).expect("a Nan"));
+        values.iter().map(|(i, _)| i.clone()).collect()
+    }
+
+    fn new_node(p: &Problem) -> Node {
+        Node {
+            value: 0,
+            room: p.k as u64,
+            estimate: 0f64,
+            contained: vec![],
+        }
+    }
+
+    fn build_next_node(
+        parent: &Node,
+        sequence: &Vec<usize>,
+        take: bool,
+        p: &Problem,
+    ) -> Option<Node> {
+        assert!(p.v.len() <= sequence.len());
+        if parent.contained.len() == sequence.len(){
+            return None;
+        }
+        let mut node = parent.clone();
+        if take {
+            let index = node.contained.len();
+            let pos = sequence[index];
+            let w = p.w[pos] as u64;
+            if node.room < w {
+                return None;
+            }
+            node.room -= w;
+            node.value += p.v[pos] as u64;
+        }
+        node.contained.push(take);
+        node.estimate = estimate(&node, sequence, p);
+        Some(node)
+    }
+
+    fn estimate(node: &Node, sequence: &Vec<usize>, p: &Problem) -> f64 {
+        assert!(sequence.len() == p.w.len());
+        assert!(node.contained.len() <= sequence.len());
+        if node.contained.len() == sequence.len(){
+            return node.value as f64;
+        }
+        let mut room = node.room;
+        let mut index = node.contained.len();
+        let mut value = node.value as f64;
+        while room > 0 && index < sequence.len(){
+            let pos = sequence[index];
+            let w = p.w[pos] as u64;
+            if w <= room {
+                room -= p.w[pos] as u64;
+                value += p.v[pos] as f64;
+            } else {
+                let fit = room as f64 / w as f64;
+                let peace_value = p.v[pos] as f64 * fit;
+                value += peace_value;
+                room = 0;
+            }
+            index += 1;
+        }
+        value
+    }
+
+    pub fn bounding_solve(problem: Problem) -> Solution {
+        let opt_sequence = find_optimal_sequence(&problem);
+        let mut start = new_node(&problem);
+        start.estimate = estimate(&start, &opt_sequence, &problem);
+
+        let mut local_max = start.clone();
+        let mut queue = std::collections::BinaryHeap::new();
+        queue.push(start);
+        while (local_max.value as f64) < queue.peek().unwrap().estimate {
+            let node = queue.pop().unwrap();
+            let next_true = build_next_node(&node, &opt_sequence, true, &problem);
+            if let Some(n) = next_true {
+                if local_max.value < n.value{
+                    local_max = n.clone();
+                }
+                queue.push(n);
+            }
+            let next_false = build_next_node(&node, &opt_sequence, false, &problem);
+            if let Some(n) = next_false {
+                if local_max.value < n.value{
+                    local_max = n.clone();
+                }
+                queue.push(n);
+            }
+        }
+        dbg!(&opt_sequence);
+        dbg!(&local_max);
+        let mut values :Vec<_>= opt_sequence.iter().zip(local_max.contained.iter()).collect();
+        dbg!(&values);
+        values.sort_by(|(i,_), (j,_)| i.cmp(j));
+        dbg!(&values);
+
+        Solution{
+            value: local_max.value as i64,
+            contained: values.iter().map(|(_,b)|**b).collect(),
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        fn build_problem() -> Problem {
+            let v = vec![1, 1, 2, 3];
+            let w = vec![2, 3, 5, 1];
+            let k = 5;
+            crate::build_problem(v.clone(), w.clone(), k.clone())
+        }
+
+        #[test]
+        fn test_find_optimal_sequence() {
+            let p = build_problem();
+            let s = find_optimal_sequence(&p);
+            assert_eq!(s, vec![3, 0, 2, 1]);
+        }
+
+        #[test]
+        fn test_estimate_equal() {
+            let mut p = build_problem();
+            p.k = 1;
+            let s = find_optimal_sequence(&p);
+            let n = new_node(&p);
+            let e = estimate(&n, &s, &p);
+            assert_eq!(e, 3f64);
+        }
+        #[test]
+        fn test_estimate_approx() {
+            let mut p = build_problem();
+            p.k = 2;
+            let s = find_optimal_sequence(&p);
+            let n = new_node(&p);
+            let e = estimate(&n, &s, &p);
+            assert_eq!(e, 3.5f64);
+        }
+        #[test]
+        fn test_next_node() {
+            let p = build_problem();
+            let s = find_optimal_sequence(&p);
+            let n1 = new_node(&p);
+            let n2 = build_next_node(&n1, &s, true, &p);
+            let m2 = Node {
+                value: 3,
+                contained: vec![true],
+                room: 4,
+                estimate: 4.8f64,
+            };
+            assert_eq!(n2.unwrap(), m2);
+            let n3 = build_next_node(&n1, &s, false, &p);
+            let m3 = Node {
+                value: 0,
+                contained: vec![false],
+                room: 5,
+                estimate: 2.2f64,
+            };
+            assert_eq!(n3.unwrap(), m3);
+        }
+        #[test]
+        fn test_bounding_solve() {
+            let v = vec![5, 6, 3];
+            let w = vec![4, 5, 2];
+            let k = 9;
+            let problem = crate::build_problem(v, w, k);
+            let solved = bounding_solve(problem);
+            dbg!(&solved);
+            assert_eq!(solved.contained, vec![true, true, false]);
+            assert_eq!(solved.value, 11);
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

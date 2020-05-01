@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(num_elements, v.len());
 
     let problem = build_problem(v, w, capacity);
-    let solved = dynamic_solve(problem);
+    let solved = bounding_solve(problem);
 
     let mut out: String = format!("{0} 0\n", solved.value);
     for element in solved.contained {
