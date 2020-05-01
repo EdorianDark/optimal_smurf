@@ -175,6 +175,19 @@ mod branch_and_bound {
             Some(self.cmp(other))
         }
     }
+    impl Node {
+        fn validate(&self, sequence: &Vec<usize>, p: &Problem) {
+            let value: i64 = self
+                .contained
+                .iter()
+                .zip(sequence.iter())
+                .filter(|(b, _)| **b)
+                .map(|(_, i)| p.v[*i as usize])
+                .sum();
+
+            assert_eq!(value as u64, self.value);
+        }
+    }
 
     fn find_optimal_sequence(problem: &Problem) -> Vec<usize> {
         assert_eq!(problem.v.len(), problem.w.len());
@@ -203,7 +216,7 @@ mod branch_and_bound {
         p: &Problem,
     ) -> Option<Node> {
         assert!(p.v.len() <= sequence.len());
-        if parent.contained.len() == sequence.len(){
+        if parent.contained.len() == sequence.len() {
             return None;
         }
         let mut node = parent.clone();
@@ -225,13 +238,13 @@ mod branch_and_bound {
     fn estimate(node: &Node, sequence: &Vec<usize>, p: &Problem) -> f64 {
         assert!(sequence.len() == p.w.len());
         assert!(node.contained.len() <= sequence.len());
-        if node.contained.len() == sequence.len(){
+        if node.contained.len() == sequence.len() {
             return node.value as f64;
         }
         let mut room = node.room;
         let mut index = node.contained.len();
         let mut value = node.value as f64;
-        while room > 0 && index < sequence.len(){
+        while room > 0 && index < sequence.len() {
             let pos = sequence[index];
             let w = p.w[pos] as u64;
             if w <= room {
@@ -260,30 +273,38 @@ mod branch_and_bound {
             let node = queue.pop().unwrap();
             let next_true = build_next_node(&node, &opt_sequence, true, &problem);
             if let Some(n) = next_true {
-                if local_max.value < n.value{
+                if local_max.value < n.value {
                     local_max = n.clone();
                 }
                 queue.push(n);
             }
             let next_false = build_next_node(&node, &opt_sequence, false, &problem);
             if let Some(n) = next_false {
-                if local_max.value < n.value{
+                if local_max.value < n.value {
                     local_max = n.clone();
                 }
                 queue.push(n);
             }
         }
-        dbg!(&opt_sequence);
-        dbg!(&local_max);
-        let mut values :Vec<_>= opt_sequence.iter().zip(local_max.contained.iter()).collect();
-        dbg!(&values);
-        values.sort_by(|(i,_), (j,_)| i.cmp(j));
-        dbg!(&values);
 
-        Solution{
-            value: local_max.value as i64,
-            contained: values.iter().map(|(_,b)|**b).collect(),
+        local_max.validate(&opt_sequence, &problem);
+        while local_max.contained.len() < opt_sequence.len() {
+            local_max.contained.push(false);
         }
+
+        assert_eq!(local_max.contained.len(), opt_sequence.len());
+
+        let mut value = 0;
+        let mut contained = vec![false; opt_sequence.len()];
+        for (i, s) in opt_sequence.iter().enumerate() {
+            if local_max.contained[i] {
+                value += problem.v[*s];
+                contained[*s] = true;
+            }
+        }
+        assert_eq!(value as u64, local_max.value);
+
+        Solution { value, contained }
     }
 
     #[cfg(test)]
