@@ -32,17 +32,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         graph.add_edge(line[0], line[1]);
     }
-    
+
     let colord = color(&graph);
-    let num_colors = colord.iter().max().unwrap();
+    let num_colors = *colord.iter().max().unwrap();
 
-
-    let mut out: String = format!("{0} 0\n", num_colors+1);
-    for element in colord {
+    let mut out: String = format!("{0} 0\n", num_colors + 1);
+    for element in &colord {
         out.push_str(&format!("{} ", element));
     }
 
     print!("{}", out);
+
+    //Debug
+    println!("");
+    for i in 0..=num_colors {
+        println!(
+            "color{} used {} times",
+            i,
+            colord.iter().filter(|c| **c == i as usize).count()
+        );
+    }
 
     return Ok(());
 }

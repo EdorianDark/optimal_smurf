@@ -1,5 +1,5 @@
-use std::vec::Vec;
 use std::collections::BTreeMap;
+use std::vec::Vec;
 
 pub struct Problem {
     //let x_i \in {0,1}
@@ -21,77 +21,115 @@ pub fn build_problem(v: Vec<i64>, w: Vec<i64>, k: i64) -> Problem {
 }
 
 #[derive(Debug)]
-pub struct Graph{
+pub struct Graph {
     pub nodes: usize,
-    pub edges : BTreeMap<usize, Vec<usize>>,
+    pub edges: BTreeMap<usize, Vec<usize>>,
 }
 
-impl Graph{
-    pub fn new(nodes: usize) -> Graph{
-        Graph{nodes: nodes,
+impl Graph {
+    pub fn new(nodes: usize) -> Graph {
+        Graph {
+            nodes: nodes,
             edges: BTreeMap::new(),
         }
     }
-    pub fn add_edge(&mut self, u: usize, v: usize){
+    pub fn add_edge(&mut self, u: usize, v: usize) {
         self.add_directed_edge(u, v);
         self.add_directed_edge(v, u);
     }
-    pub fn add_directed_edge(&mut self, from: usize, to: usize){
+    pub fn add_directed_edge(&mut self, from: usize, to: usize) {
         let entry = self.edges.entry(from).or_default();
         entry.push(to);
     }
 }
 
-mod graph_coloring{
+mod graph_coloring {
     use super::Graph;
-    pub fn color(graph: &Graph) -> Vec<usize>{
-        let mut colord : Vec<Option<usize>> = vec![None; graph.nodes as usize];
+    pub fn color(graph: &Graph) -> Vec<usize> {
+        let mut colord: Vec<Option<usize>> = vec![None; graph.nodes as usize];
         while colord.contains(&None) {
-            dbg!(colord.iter().filter(|o| o.is_none()).count());
             let next = find_next(graph, &colord);
             assert_eq!(colord[next], None);
-            //dbg!(&next);
             let next_color = find_next_color(graph, &colord, &next);
             colord[next] = Some(next_color);
         }
-        colord.iter().map(|e| e.unwrap()).collect()
+        let colord = colord.iter().map(|e| e.unwrap()).collect();
+        //improove_colors(graph, colord)
+        colord
     }
 
-    fn find_next(graph: &Graph, colord: &Vec<Option<usize>>) -> usize{
-        let neighbours : Vec<_>= graph.edges.iter()
-            .map(|(_,v)| v.len()).collect();
-        let colord_neighbours: Vec<_> = graph.edges.iter()
-            .map(|(_,v)| v.iter()
-                .filter(|e| colord[**e].is_some()).count())
+    fn find_next(graph: &Graph, colord: &Vec<Option<usize>>) -> usize {
+        let neighbours: Vec<_> = graph.edges.iter().map(|(_, v)| v.len()).collect();
+        let colord_neighbours: Vec<_> = graph
+            .edges
+            .iter()
+            .map(|(_, v)| v.iter().filter(|e| colord[**e].is_some()).count())
             .collect();
-        let mut counted :Vec<_> = neighbours.iter()
+        let mut counted: Vec<_> = neighbours
+            .iter()
             .enumerate()
             .map(|(i, n)| (i, *n, colord_neighbours[i]))
-            .filter(|(i,_,_)| colord[*i].is_none())
+            .filter(|(i, _, _)| colord[*i].is_none())
             .collect();
-        counted.sort_by(|a,b| 
-            b.2.cmp(&a.2).then(b.1.cmp(&a.1)).then(b.0.cmp(&a.0)));
-        //dbg!(&counted);
+        counted.sort_by(|a, b| b.2.cmp(&a.2).then(b.1.cmp(&a.1)).then(b.0.cmp(&a.0)));
         counted[0].0
     }
 
     fn find_next_color(graph: &Graph, colord: &Vec<Option<usize>>, next: &usize) -> usize {
         let neighbours = &graph.edges[next];
-        let mut colors :Vec<_> = neighbours.iter()
+        let mut colors: Vec<_> = neighbours
+            .iter()
             .map(|n| colord[*n])
             .filter(|c| c.is_some())
             .map(|o| o.unwrap())
             .collect();
         colors.sort();
-        let mut next_color :usize = 0;
+        let mut next_color: usize = 0;
         while colors.contains(&next_color) {
-            next_color+=1;
+            next_color += 1;
         }
         next_color
-    }
+    } /*
+
+      fn find_historygram(colord: &Vec<usize>) -> Vec<usize> {
+          let num_colors = *colord.iter().max().unwrap();
+          (0..=num_colors)
+              .map(|c| colord.iter().filter(|v| **v == c).count())
+              .collect()
+      }
+
+      fn build_mapping_graph(graph: &Graph, colord: &Vec<usize>) -> Graph {
+          //builds directed digraph with nodes and colors
+          //if node n has color c, then there is a edge from c to n
+          //if n and no neighbour of n has color c2 , then edge from n to c2
+          let historigram = find_historygram(&colord);
+          let num_colors = historigram.len();
+          let mut mapping = Graph::new(graph.nodes + num_colors);
+          for (n, neighbours) in &graph.edges{
+              mapping.add_directed_edge(colord[*n], *n);
+              let neighbour_colors : Vec<_>= neighbours.iter()
+                  .map(|n| colord[*n]).collect();
+              for nc in neighbour_colors{
+                  mapping.add_directed_edge(*n, nc);
+              }
+          }
+          mapping
+      }
+
+      fn improove_colors(graph: &Graph, colord: Vec<usize>) -> Vec<usize> {
+          let historigram = find_historygram(&colord);
+          let pruning_colors: Vec<_> = historigram.iter().filter(|i| **i < 3).collect();
+
+          for color in pruning_colors {
+              let mapping_graph = build_mapping_graph(graph, &colord);
+
+          }
+
+          colord
+      }
+      */
 }
 pub use graph_coloring::color;
-
 
 mod dynamic_programming {
     use super::{Problem, Solution};
@@ -451,7 +489,6 @@ mod branch_and_bound {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
